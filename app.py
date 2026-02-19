@@ -33,13 +33,7 @@ def create_app(config_class=Config):
     mail.init_app(app)
     
     # Configure CORS
-    CORS(app, resources={
-        r"/api/*": {
-            "origins": "*",
-            "methods": ["GET", "POST", "PUT", "DELETE", "PATCH"],
-            "allow_headers": ["Content-Type", "Authorization"]
-        }
-    })
+    CORS(app)
     
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
