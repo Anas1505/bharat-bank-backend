@@ -383,7 +383,7 @@ class NotificationTemplates:
                     <p>Your account status has been updated.</p>
                     
                     <div class="status-box">
-                        <p><strong>Account:</strong> ****{{ account_number[-4:] if account_number|length > 4 else account_number }}</p>
+                        <p><strong>Account:</strong> ****{{ ((account_number or '')[-4:]) }}</p>
                         <p><strong>New Status:</strong> {{ status|title }}</p>
                         {% if reason %}
                         <p><strong>Reason:</strong> {{ reason }}</p>
