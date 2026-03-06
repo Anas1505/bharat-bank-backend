@@ -13,6 +13,13 @@ class NotificationService:
     def send_email(to_email, subject, template_name, **template_vars):
         """Send email notification"""
         try:
+            # Skip email entirely unless explicitly enabled.
+            # This prevents slow/blocked SMTP from timing out API requests on Render.
+            if not current_app.config.get('EMAIL_ENABLED', False):
+                return False
+            if not current_app.config.get('MAIL_USERNAME') or not current_app.config.get('MAIL_PASSWORD'):
+                return False
+
             # Get email templates
             templates = NotificationTemplates()
             

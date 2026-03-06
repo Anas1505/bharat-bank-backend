@@ -28,6 +28,9 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER', 'noreply@mobilebanking.com')
+
+    # Disable outbound email by default (Render often blocks SMTP, causing request timeouts/502s)
+    EMAIL_ENABLED = os.environ.get('EMAIL_ENABLED', 'false').lower() in ['true', '1', 'yes']
     
     # Security settings
     BCRYPT_LOG_ROUNDS = int(os.environ.get('BCRYPT_LOG_ROUNDS', 12))

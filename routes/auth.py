@@ -133,15 +133,15 @@ def register():
                 request.headers.get('User-Agent', '')
             )
             
-            # Send welcome email
-            # Send welcome email (disabled for now)
+            # Send welcome email only if enabled (avoid Render SMTP timeouts)
             try:
-                NotificationService.send_welcome_email(
-                    user.email,
-                    user.first_name
-                )
-            except Exception as e:
-                print("Email error:", e)
+                if current_app.config.get('EMAIL_ENABLED', False):
+                    NotificationService.send_welcome_email(
+                        user.email,
+                        user.first_name
+                    )
+            except Exception:
+                pass
 
             # Create tokens
             access_token = create_access_token(
@@ -184,9 +184,7 @@ def register():
     
         return jsonify({
             'success': False,
-            # In development we expose the real error to help debug Render/Mongo issues.
-            # For production, replace this with a generic message again.
-            'message': str(e)
+            'message': 'Registration failed. Please try again later.'
         }), 500
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("10 per minute")
