@@ -78,12 +78,24 @@ def create_app(config_class=Config):
     # Health check endpoint
     @app.route('/api/health', methods=['GET'])
     def health_check():
+        db_connected = False
+        db_error = None
+        try:
+            # If MONGO_URI isn't set, this will fail anyway; keep it explicit.
+            if app.config.get('DB_CONFIGURED'):
+                mongo.db.command('ping')
+                db_connected = True
+        except Exception as e:
+            db_error = str(e)
+
         return jsonify({
             'status': 'OK',
             'message': 'Bharrat Bank API is running',
             'version': '1.0.0',
             'currency': 'INR',
-            'db_configured': bool(app.config.get('DB_CONFIGURED'))
+            'db_configured': bool(app.config.get('DB_CONFIGURED')),
+            'db_connected': db_connected,
+            'db_error': db_error
         })
     
     # Global error handlers

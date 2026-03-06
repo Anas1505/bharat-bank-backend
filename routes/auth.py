@@ -57,6 +57,16 @@ def register():
                 'message': 'Server misconfigured: database not connected. Set MONGODB_URI and redeploy.'
             }), 503
 
+        # Fail fast if DB is configured but unreachable (Atlas IP whitelist / bad URI)
+        try:
+            from extensions import mongo
+            mongo.db.command('ping')
+        except Exception:
+            return jsonify({
+                'success': False,
+                'message': 'Database unreachable. Check MongoDB Atlas Network Access (IP whitelist) and MONGODB_URI.',
+            }), 503
+
         # Validate request data
         schema = RegisterSchema()
         data = schema.load(request.get_json() or {})
