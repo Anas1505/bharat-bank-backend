@@ -184,7 +184,9 @@ def register():
     
         return jsonify({
             'success': False,
-            'message': 'Registration failed. Please try again later.'
+            # In development we expose the real error to help debug Render/Mongo issues.
+            # For production, replace this with a generic message again.
+            'message': str(e)
         }), 500
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("10 per minute")
