@@ -14,7 +14,7 @@ class Account(BaseModel):
         super().__init__(**kwargs)
         
         # Generate account number if not provided
-        if 'account_number' not in self.data:
+        if 'account_number' not in self.data or not self.data.get('account_number'):
             self.data['account_number'] = self.generate_account_number()
         
         # Set default values
@@ -52,7 +52,10 @@ class Account(BaseModel):
     
     def get_masked_account_number(self):
         """Get masked account number for display"""
-        return f"****{self.account_number[-4:]}"
+        account_number = getattr(self, 'account_number', None)
+        if not account_number or not isinstance(account_number, str):
+            return "****"
+        return f"****{account_number[-4:]}"
     
     def can_transact(self, amount, transaction_type='debit'):
         """Check if transaction is allowed"""
