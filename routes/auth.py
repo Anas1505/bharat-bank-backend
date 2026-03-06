@@ -50,6 +50,13 @@ class ChangePasswordSchema(Schema):
 def register():
     """Register a new user"""
     try:
+        # Fail fast if DB is not configured (prevents NoneType subscripting in mongo.db[...])
+        if not current_app.config.get('DB_CONFIGURED'):
+            return jsonify({
+                'success': False,
+                'message': 'Server misconfigured: database not connected. Set MONGODB_URI and redeploy.'
+            }), 503
+
         # Validate request data
         schema = RegisterSchema()
         data = schema.load(request.get_json() or {})
@@ -133,6 +140,12 @@ def register():
             )
             refresh_token = create_refresh_token(identity=str(user._id))
             
+            primary_account_json = None
+            try:
+                primary_account_json = account.json()
+            except Exception:
+                primary_account_json = None
+
             return jsonify({
                 'success': True,
                 'message': 'Registration successful',
@@ -140,7 +153,7 @@ def register():
                     'user': user.json(),
                     'access_token': access_token,
                     'refresh_token': refresh_token,
-                    'primary_account': account.json()
+                    'primary_account': primary_account_json
                 }
             }), 201
         else:
@@ -161,7 +174,7 @@ def register():
     
         return jsonify({
             'success': False,
-            'message': str(e)
+            'message': 'Registration failed. Please try again later.'
         }), 500
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("10 per minute")

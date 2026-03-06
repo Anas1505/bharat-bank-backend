@@ -25,6 +25,9 @@ def create_app(config_class=Config):
     """Application factory pattern"""
     app = Flask(__name__)
     app.config.from_object(config_class)
+
+    # Detect missing DB configuration early (common on Render)
+    app.config['DB_CONFIGURED'] = bool(app.config.get('MONGO_URI'))
     
     # Initialize extensions
     mongo.init_app(app)
@@ -79,7 +82,8 @@ def create_app(config_class=Config):
             'status': 'OK',
             'message': 'Bharrat Bank API is running',
             'version': '1.0.0',
-            'currency': 'INR'
+            'currency': 'INR',
+            'db_configured': bool(app.config.get('DB_CONFIGURED'))
         })
     
     # Global error handlers
