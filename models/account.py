@@ -25,7 +25,7 @@ class Account(BaseModel):
         if 'available_balance' not in self.data:
             self.data['available_balance'] = self.data['balance']
         if 'currency' not in self.data:
-            self.data['currency'] = 'USD'
+            self.data['currency'] = 'INR'
         if 'is_active' not in self.data:
             self.data['is_active'] = True
         if 'is_primary' not in self.data:

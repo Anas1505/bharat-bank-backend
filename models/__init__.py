@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from bson import ObjectId
 from pymongo.errors import DuplicateKeyError
 from extensions import mongo
@@ -26,22 +26,33 @@ class BaseModel:
             raise NotImplementedError("collection_name must be defined in subclass")
         return mongo.db[cls.collection_name]
     
+    def _serialize_for_mongo(self, data):
+        """Convert Python types to BSON-compatible types (MongoDB doesn't support datetime.date)"""
+        result = {}
+        for key, value in data.items():
+            if isinstance(value, date) and not isinstance(value, datetime):
+                result[key] = datetime.combine(value, datetime.min.time())
+            else:
+                result[key] = value
+        return result
+
     def save(self):
         """Save document to database"""
         self.data['updated_at'] = datetime.utcnow()
         collection = self.get_collection()
+        data_to_save = self._serialize_for_mongo(self.data)
         
         if self.exists():
             # Update existing document
             result = collection.update_one(
                 {'_id': self.data['_id']},
-                {'$set': self.data}
+                {'$set': data_to_save}
             )
             return result.modified_count > 0
         else:
             # Insert new document
             try:
-                result = collection.insert_one(self.data)
+                result = collection.insert_one(data_to_save)
                 return result.inserted_id == self.data['_id']
             except DuplicateKeyError as e:
                 raise ValueError(f"Duplicate key error: {str(e)}")
@@ -112,7 +123,7 @@ class BaseModel:
                 
             if isinstance(value, ObjectId):
                 result[key] = str(value)
-            elif isinstance(value, datetime):
+            elif isinstance(value, (datetime, date)):
                 result[key] = value.isoformat()
             else:
                 result[key] = value
@@ -145,8 +156,8 @@ def validate_email(email):
     return re.match(pattern, email) is not None
 
 def validate_phone(phone):
-    """Validate phone number format"""
-    pattern = r'^\d{10,15}$'
+    """Validate phone number format - exactly 10 digits"""
+    pattern = r'^\d{10}$'
     return re.match(pattern, phone) is not None
 
 def hash_password(password):

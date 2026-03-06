@@ -28,7 +28,7 @@ class RegisterSchema(Schema):
     first_name = fields.Str(required=True, validate=validate.Length(min=1, max=50))
     last_name = fields.Str(required=True, validate=validate.Length(min=1, max=50))
     email = fields.Email(required=True)
-    phone = fields.Str(required=True, validate=validate.Length(min=10, max=15))
+    phone = fields.Str(required=True, validate=validate.Length(min=10, max=10))
     password = fields.Str(required=True, validate=validate.Length(min=8))
     date_of_birth = fields.Date(required=True)
     accept_terms = fields.Bool(required=True)
@@ -102,9 +102,9 @@ def register():
             # Create a primary account for the user
             account_data = {
                 'user_id': user._id,
-                'account_type': 'checking',
+                'account_type': 'savings',
                 'balance': 0.0,
-                'currency': 'USD',
+                'currency': 'INR',
                 'is_primary': True
             }
             account = Account(**account_data)
@@ -117,11 +117,15 @@ def register():
             )
             
             # Send welcome email
-            NotificationService.send_welcome_email(
-                user.email, 
-                user.first_name
-            )
-            
+            # Send welcome email (disabled for now)
+            try:
+                NotificationService.send_welcome_email(
+                    user.email,
+                    user.first_name
+                )
+            except Exception as e:
+                print("Email error:", e)
+
             # Create tokens
             access_token = create_access_token(
                 identity=str(user._id),
@@ -152,19 +156,36 @@ def register():
             'errors': e.messages
         }), 400
     except Exception as e:
+        import traceback
+        traceback.print_exc() 
+    
         return jsonify({
             'success': False,
-            'message': 'Registration failed. Please try again.'
+            'message': str(e)
         }), 500
-
 @auth_bp.route('/login', methods=['POST'])
 @limiter.limit("10 per minute")
 def login():
     """Authenticate user and return tokens"""
     try:
+        # Get and validate request data
+        request_data = request.get_json()
+        if not request_data:
+            return jsonify({
+                'success': False,
+                'message': 'Request body is required'
+            }), 400
+        
         # Validate request data
         schema = LoginSchema()
-        data = schema.load(request.get_json() or {})
+        try:
+            data = schema.load(request_data)
+        except ValidationError as e:
+            return jsonify({
+                'success': False,
+                'message': 'Validation error',
+                'errors': e.messages
+            }), 400
         
         # Find user
         user = User.find_one({'email': data['email'].lower()})
@@ -180,7 +201,16 @@ def login():
             }), 401
         
         # Check password
-        if not user.check_password(data['password']):
+        try:
+            password_valid = user.check_password(data['password'])
+        except Exception as e:
+            current_app.logger.error(f"Password check error: {str(e)}")
+            return jsonify({
+                'success': False,
+                'message': 'Invalid email or password'
+            }), 401
+        
+        if not password_valid:
             # Log failed login attempt
             SecurityAudit.audit_login_attempt(
                 str(user._id), False, get_client_ip(),
@@ -255,6 +285,8 @@ def login():
             'errors': e.messages
         }), 400
     except Exception as e:
+        import traceback
+        current_app.logger.error(f"Login error: {str(e)}\n{traceback.format_exc()}")
         return jsonify({
             'success': False,
             'message': 'Login failed. Please try again.'

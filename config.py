@@ -8,7 +8,7 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
     DEBUG = os.environ.get('FLASK_ENV') == 'development'
     
-    # MongoDB settings
+    # MongoDB settings - localhost for MongoDB Compass (mongodb://localhost:27017/mobile_banking)
     MONGO_URI = os.environ.get('MONGODB_URI', 'mongodb://localhost:27017/mobile_banking')
     
     # JWT settings

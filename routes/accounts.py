@@ -15,9 +15,9 @@ accounts_bp = Blueprint('accounts', __name__)
 
 # Schemas for request validation
 class CreateAccountSchema(Schema):
-    account_type = fields.Str(required=True, validate=validate.OneOf(['checking', 'savings', 'credit']))
+    account_type = fields.Str(required=True, validate=validate.OneOf(['checking', 'savings', 'current', 'credit']))
     initial_deposit = fields.Float(missing=0.0)
-    currency = fields.Str(missing='USD', validate=validate.OneOf(['USD', 'EUR', 'GBP']))
+    currency = fields.Str(missing='INR', validate=validate.OneOf(['INR', 'USD', 'EUR', 'GBP']))
     nickname = fields.Str(missing=None, validate=validate.Length(max=50))
 
 class UpdateAccountSchema(Schema):
@@ -79,6 +79,34 @@ def get_accounts():
         return jsonify({
             'success': False,
             'message': 'Failed to retrieve accounts'
+        }), 500
+
+@accounts_bp.route('/by-number/<account_number>', methods=['GET'])
+@jwt_required()
+def get_account_by_number(account_number):
+    """Look up an account by its account number"""
+    try:
+        account = Account.find_one({'account_number': account_number})
+        if not account:
+            return jsonify({
+                'success': False,
+                'message': 'Account not found'
+            }), 404
+        
+        # Return minimal info (don't expose balance to non-owners)
+        return jsonify({
+            'success': True,
+            'data': {
+                'account_id': str(account._id),
+                'account_number': account.account_number,
+                'account_type': account.data.get('account_type', ''),
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to look up account'
         }), 500
 
 @accounts_bp.route('/<account_id>', methods=['GET'])
@@ -171,7 +199,7 @@ def create_account():
             'user_id': user._id,
             'account_type': data['account_type'],
             'balance': data.get('initial_deposit', 0.0),
-            'currency': data.get('currency', 'USD'),
+            'currency': data.get('currency', 'INR'),
             'nickname': data.get('nickname'),
             'is_primary': len(existing_accounts) == 0  # First account is primary
         }

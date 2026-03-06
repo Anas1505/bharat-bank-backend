@@ -77,7 +77,7 @@ def validate_date_range(start_date, end_date):
 
 def validate_currency_code(currency):
     """Validate currency code"""
-    valid_currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY']
+    valid_currencies = ['INR', 'USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY']
     
     if not currency or currency not in valid_currencies:
         raise ValidationError(f"Currency must be one of: {', '.join(valid_currencies)}")

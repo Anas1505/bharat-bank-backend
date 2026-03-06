@@ -45,7 +45,7 @@ def create_app(config_class=Config):
     @app.route('/', methods=['GET'])
     def root():
         return jsonify({
-            'message': 'Welcome to Bharat Bank API',
+            'message': 'Welcome to Bharrat Bank API',
             'version': '1.0.0',
             'currency': 'INR',
             'endpoints': {
@@ -77,7 +77,7 @@ def create_app(config_class=Config):
     def health_check():
         return jsonify({
             'status': 'OK',
-            'message': 'Bharat Bank API is running',
+            'message': 'Bharrat Bank API is running',
             'version': '1.0.0',
             'currency': 'INR'
         })

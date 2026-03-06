@@ -15,11 +15,25 @@ class User(BaseModel):
         """Initialize User with hashed password"""
         super().__init__(**kwargs)
         if 'password' in kwargs:
-            self.data['password'] = hash_password(kwargs['password'])
+            # Only hash if password is not already hashed (bcrypt hashes start with $2a$, $2b$, or $2y$)
+            password = kwargs['password']
+            if not (isinstance(password, str) and password.startswith('$2')):
+                self.data['password'] = hash_password(password)
+            else:
+                # Password is already hashed, use it as-is
+                self.data['password'] = password
     
     def check_password(self, password):
         """Check password against stored hash"""
-        return check_password(password, self.password)
+        if not password:
+            return False
+        stored_hash = self.password
+        if not stored_hash:
+            return False
+        try:
+            return check_password(password, stored_hash)
+        except Exception:
+            return False
     
     def set_password(self, password):
         """Set a new password for user"""
