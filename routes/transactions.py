@@ -313,7 +313,7 @@ def create_deposit():
         }), 500
 
 @transactions_bp.route('/withdrawal', methods=['POST'])
-@jwt_required(fresh=True)
+@jwt_required()
 @limiter.limit("15 per hour")
 def create_withdrawal():
     """Create a withdrawal transaction"""
@@ -434,7 +434,7 @@ def create_withdrawal():
         }), 500
 
 @transactions_bp.route('/transfer', methods=['POST'])
-@jwt_required(fresh=True)
+@jwt_required()
 @limiter.limit("15 per hour")
 def create_transfer():
     """Create a transfer transaction"""
