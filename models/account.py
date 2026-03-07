@@ -34,6 +34,8 @@ class Account(BaseModel):
             self.data['daily_transaction_limit'] = 10000.0
         if 'monthly_transaction_limit' not in self.data:
             self.data['monthly_transaction_limit'] = 50
+        if 'overdraft_limit' not in self.data:
+            self.data['overdraft_limit'] = 0.0
         if 'is_frozen' not in self.data:
             self.data['is_frozen'] = False
         if 'freeze_reason' not in self.data:
@@ -66,7 +68,7 @@ class Account(BaseModel):
             return {'allowed': False, 'reason': 'Account is inactive'}
         
         if transaction_type == 'debit':
-            available_amount = self.balance + (self.overdraft_limit or 0)
+            available_amount = self.balance + (self,"overdraft_limit", 0)
             if amount > available_amount:
                 return {'allowed': False, 'reason': 'Insufficient funds'}
             
