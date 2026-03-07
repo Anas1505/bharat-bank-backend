@@ -68,7 +68,8 @@ class Account(BaseModel):
             return {'allowed': False, 'reason': 'Account is inactive'}
         
         if transaction_type == 'debit':
-            available_amount = self.balance + (self,"overdraft_limit", 0)
+            overdraft = getattr(self, 'overdraft_limit', None) or 0
+            available_amount = self.balance + overdraft
             if amount > available_amount:
                 return {'allowed': False, 'reason': 'Insufficient funds'}
             
