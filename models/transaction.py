@@ -42,6 +42,8 @@ class Transaction(BaseModel):
             self.data['method'] = 'mobile_app'
         if 'fees' not in self.data:
             self.data['fees'] = {'amount': 0.0, 'type': 'none'}
+        if 'amount' in self.data:
+            self.data['amount'] = float(self.data['amount'])
     
     def generate_transaction_id(self):
         """Generate a unique transaction ID"""

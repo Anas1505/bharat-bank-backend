@@ -93,6 +93,9 @@ class Account(BaseModel):
     
     def update_balance(self, amount, transaction_type='debit'):
         """Update account balance"""
+
+        amount = float(amount)
+         
         if transaction_type == 'debit':
             self.balance -= amount
         else:

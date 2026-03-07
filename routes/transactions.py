@@ -267,7 +267,7 @@ def create_deposit():
             'user_id': ObjectId(current_user_id),
             'to_account_id': ObjectId(data['to_account_id']),
             'type': 'deposit',
-            'amount': data['amount'],
+            'amount': float(data['amount']),
             'description': sanitize_input(data['description']),
             'category': data.get('category', 'other'),
             'currency': account.currency,
