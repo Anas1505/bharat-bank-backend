@@ -157,19 +157,6 @@ class Transaction(BaseModel):
                 from_account.update_balance(self.amount, 'debit')
                 to_account.update_balance(self.amount, 'credit')
                 self.data['balance_after'] = from_account.balance
-
-                # CREATE RECEIVER TRANSACTION (THIS WAS MISSING)
-                receiver_transaction = Transaction(
-                    user_id=to_account.user_id,
-                    to_account_id=to_account.account_id,
-                    from_account_id=from_account.account_id,
-                    type='transfer_in',
-                    amount=self.amount,
-                    description="Transfer received",
-                    status='completed'
-                )
-
-                receiver_transaction.save()
             
             # Mark transaction as completed
             self.status = 'completed'
