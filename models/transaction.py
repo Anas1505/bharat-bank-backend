@@ -156,7 +156,27 @@ class Transaction(BaseModel):
                 # Update both account balances
                 from_account.update_balance(self.amount, 'debit')
                 to_account.update_balance(self.amount, 'credit')
+                self.type = "transfer_out"
                 self.data['balance_after'] = from_account.balance
+
+                # Receiver transaction
+                receiver_transaction = Transaction(
+                    from_account_id=getattr(self, 'from_account_id', None),
+                    to_account_id=getattr(self, 'to_account_id', None),
+                    type='transfer_in',
+                    amount=self.amount,
+                    currency=self.currency,
+                    description=f"Transfer received from {from_account.get_masked_account_number()}",
+                    category=self.category,
+                    status='completed',
+                    method=self.method,
+                    metadata={
+                        'original_transaction_id': str(self._id),
+                        'direction': 'incoming'
+                    }
+                )
+
+                receiver_transaction.save()
             
             # Mark transaction as completed
             self.status = 'completed'
