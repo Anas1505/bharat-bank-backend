@@ -113,7 +113,11 @@ def get_transactions():
                 }), 400
         
         if filters.get('transaction_type'):
-            query['type'] = filters['transaction_type']
+            t = filters['transaction_type']
+            if t == 'transfer':
+                query['type'] = {'$in': ['transfer', 'transfer_out', 'transfer_in']}
+            else:
+                query['type'] = t
         
         if filters.get('category'):
             query['category'] = filters['category']

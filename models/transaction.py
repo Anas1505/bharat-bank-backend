@@ -156,11 +156,15 @@ class Transaction(BaseModel):
                 # Update both account balances
                 from_account.update_balance(self.amount, 'debit')
                 to_account.update_balance(self.amount, 'credit')
+                # Sender record: transfer_out with receiver account number
                 self.type = "transfer_out"
                 self.data['balance_after'] = from_account.balance
+                self.data['receiver_account_number'] = to_account.account_number
 
-                # Receiver transaction
+                # Receiver record: transfer_in with sender account number and receiver's user_id
                 receiver_transaction = Transaction(
+                    user_id=to_account.user_id,
+                    transaction_id=self.transaction_id,
                     from_account_id=getattr(self, 'from_account_id', None),
                     to_account_id=getattr(self, 'to_account_id', None),
                     type='transfer_in',
@@ -170,12 +174,13 @@ class Transaction(BaseModel):
                     category=self.category,
                     status='completed',
                     method=self.method,
+                    sender_account_number=from_account.account_number,
+                    balance_after=to_account.balance,
                     metadata={
                         'original_transaction_id': str(self._id),
                         'direction': 'incoming'
                     }
                 )
-
                 receiver_transaction.save()
             
             # Mark transaction as completed
@@ -233,8 +238,8 @@ class Transaction(BaseModel):
         
         # Add calculated fields
         data['formatted_amount'] = f"{self.currency} {self.amount:.2f}"
-        data['is_debit'] = self.type in ['withdrawal', 'transfer', 'payment', 'fee']
-        data['is_credit'] = self.type in ['deposit', 'interest', 'refund']
+        data['is_debit'] = self.type in ['withdrawal', 'transfer', 'transfer_out', 'payment', 'fee']
+        data['is_credit'] = self.type in ['deposit', 'interest', 'refund', 'transfer_in']
         
         # Add total amount including fees
         fees_amount = self.data.get('fees', {}).get('amount', 0)
