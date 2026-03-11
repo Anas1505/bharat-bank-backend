@@ -6,7 +6,7 @@ from extensions import limiter
 from models.user import User
 from models.account import Account
 from models.transaction import Transaction
-from utils.validation import validate_password_strength, sanitize_input
+from utils.validation import validate_password_strength, validate_pin, sanitize_input
 from utils.security import SecurityAudit, log_security_event, check_password_complexity
 from utils.notifications import NotificationService
 
@@ -34,12 +34,26 @@ class SecuritySettingsSchema(Schema):
     login_alerts = fields.Bool()
     transaction_alerts = fields.Bool()
 
+
 class DeactivateAccountSchema(Schema):
     reason = fields.Str(required=True, validate=validate.OneOf([
         'no_longer_needed', 'security_concern', 'poor_service', 'other'
     ]))
     feedback = fields.Str(validate=validate.Length(max=500))
     confirm_deactivation = fields.Bool(required=True)
+
+
+class SetTransactionPinSchema(Schema):
+    """Schema for setting initial transaction PIN"""
+    new_pin = fields.Str(required=True, validate=validate.Length(equal=4))
+    confirm_pin = fields.Str(required=True, validate=validate.Length(equal=4))
+
+
+class ChangeTransactionPinSchema(Schema):
+    """Schema for changing existing transaction PIN"""
+    current_pin = fields.Str(required=True, validate=validate.Length(equal=4))
+    new_pin = fields.Str(required=True, validate=validate.Length(equal=4))
+    confirm_new_pin = fields.Str(required=True, validate=validate.Length(equal=4))
 
 @users_bp.route('/profile', methods=['GET'])
 @jwt_required()
@@ -241,7 +255,6 @@ def update_password():
         
         # Update password
         user.set_password(data['new_password'])
-        user.password_changed_at = datetime.utcnow()
         user.save()
         
         # Send security alert
@@ -264,7 +277,8 @@ def update_password():
             'success': True,
             'message': 'Password updated successfully',
             'data': {
-                'complexity_score': complexity_score
+                'complexity_score': complexity_score,
+                'last_password_change': user.password_changed_at.isoformat() if hasattr(user, 'password_changed_at') else None
             }
         })
         
@@ -301,7 +315,11 @@ def get_security_settings():
             'sms_notifications': getattr(user, 'sms_notifications', False),
             'login_alerts': getattr(user, 'login_alerts', True),
             'transaction_alerts': getattr(user, 'transaction_alerts', True),
-            'last_password_change': getattr(user, 'password_changed_at', user.created_at).isoformat() if hasattr(user, 'created_at') else None,
+            'last_password_change': getattr(
+                user,
+                'last_password_change',
+                getattr(user, 'password_changed_at', user.created_at)
+            ).isoformat() if hasattr(user, 'created_at') else None,
             'account_created': user.created_at.isoformat() if hasattr(user, 'created_at') else None,
             'last_login': user.last_login.isoformat() if user.last_login else None,
             'last_login_ip': getattr(user, 'last_login_ip', None)
@@ -409,6 +427,154 @@ def update_security_settings():
         return jsonify({
             'success': False,
             'message': 'Failed to update security settings'
+        }), 500
+
+@users_bp.route('/set-transaction-pin', methods=['POST'])
+@jwt_required(fresh=True)
+def set_transaction_pin():
+    """Set initial transaction PIN for the authenticated user."""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.find_by_id(current_user_id)
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+
+        # Disallow if PIN already set
+        if getattr(user, 'transaction_pin_set', False) or getattr(user, 'transaction_pin_hash', None):
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is already set. Use change PIN instead.'
+            }), 400
+
+        schema = SetTransactionPinSchema()
+        data = schema.load(request.get_json() or {})
+
+        # Validate PIN format
+        try:
+            validate_pin(data['new_pin'])
+        except ValidationError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+
+        if data['new_pin'] != data['confirm_pin']:
+            return jsonify({
+                'success': False,
+                'message': 'New PIN and confirmation do not match'
+            }), 400
+
+        # Set PIN securely (hashed)
+        user.set_transaction_pin(data['new_pin'])
+        user.transaction_pin_set = True
+        user.save()
+
+        # Log security event
+        log_security_event('transaction_pin_set', current_user_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Transaction PIN set successfully',
+            'data': {
+                'transaction_pin_set': True
+            }
+        })
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'message': 'Validation error',
+            'errors': e.messages
+        }), 400
+    except Exception:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to set transaction PIN'
+        }), 500
+
+
+@users_bp.route('/change-transaction-pin', methods=['POST'])
+@jwt_required(fresh=True)
+def change_transaction_pin():
+    """Change existing transaction PIN for the authenticated user."""
+    try:
+        current_user_id = get_jwt_identity()
+        user = User.find_by_id(current_user_id)
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': 'User not found'
+            }), 404
+
+        if not getattr(user, 'transaction_pin_hash', None):
+            return jsonify({
+                'success': False,
+                'message': 'No transaction PIN found. Please set a PIN first.'
+            }), 400
+
+        schema = ChangeTransactionPinSchema()
+        data = schema.load(request.get_json() or {})
+
+        # Verify current PIN
+        if not user.check_transaction_pin(data['current_pin']):
+            return jsonify({
+                'success': False,
+                'message': 'Current transaction PIN is incorrect'
+            }), 401
+
+        # Validate new PIN format
+        try:
+            validate_pin(data['new_pin'])
+        except ValidationError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+
+        if data['new_pin'] != data['confirm_new_pin']:
+            return jsonify({
+                'success': False,
+                'message': 'New PIN and confirmation do not match'
+            }), 400
+
+        # Prevent reusing the same PIN
+        if user.check_transaction_pin(data['new_pin']):
+            return jsonify({
+                'success': False,
+                'message': 'New transaction PIN must be different from the current PIN'
+            }), 400
+
+        # Update PIN securely
+        user.set_transaction_pin(data['new_pin'])
+        user.transaction_pin_set = True
+        user.save()
+
+        # Log security event
+        log_security_event('transaction_pin_changed', current_user_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Transaction PIN changed successfully',
+            'data': {
+                'transaction_pin_set': True
+            }
+        })
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'message': 'Validation error',
+            'errors': e.messages
+        }), 400
+    except Exception:
+        return jsonify({
+            'success': False,
+            'message': 'Failed to change transaction PIN'
         }), 500
 
 @users_bp.route('/activity-log', methods=['GET'])

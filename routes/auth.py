@@ -125,6 +125,8 @@ def register():
             # transaction PIN fields initialisation
             'pin_attempts': 0,
             'pin_locked_until': None,
+            # consent & metadata
+            'terms_accepted': True,
         }
         
         user = User(**user_data)

@@ -32,6 +32,18 @@ class User(BaseModel):
             self.data['pin_attempts'] = 0
         if 'pin_locked_until' not in self.data:
             self.data['pin_locked_until'] = None
+
+        # High-level security/consent metadata
+        if 'transaction_pin_set' not in self.data:
+            # Consider PIN set if a hash already exists (for legacy users)
+            existing_hash = self.data.get('transaction_pin_hash')
+            self.data['transaction_pin_set'] = bool(existing_hash)
+        if 'terms_accepted' not in self.data:
+            # Will be set to True during registration when terms are accepted
+            self.data['terms_accepted'] = False
+        # Normalize password change metadata
+        if 'password_changed_at' in self.data and 'last_password_change' not in self.data:
+            self.data['last_password_change'] = self.data['password_changed_at']
     
     def check_password(self, password):
         """Check password against stored hash"""
@@ -59,6 +71,7 @@ class User(BaseModel):
         # Reset attempts and lock status whenever PIN is (re)set
         self.pin_attempts = 0
         self.pin_locked_until = None
+        self.transaction_pin_set = True
 
     def check_transaction_pin(self, pin: str) -> bool:
         """Verify the provided PIN against the stored hash."""
@@ -95,6 +108,9 @@ class User(BaseModel):
     def set_password(self, password):
         """Set a new password for user"""
         self.password = hash_password(password)
+        now = datetime.utcnow()
+        self.password_changed_at = now
+        self.last_password_change = now
     
     def json(self, exclude_fields=None):
         """Convert user to JSON"""
