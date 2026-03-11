@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from extensions import limiter
 from models.transaction import Transaction
 from models.account import Account
-from models.user import User
+from models.user import User, PIN_MAX_ATTEMPTS, PIN_LOCKOUT_MINUTES
 from utils.validation import validate_transaction_amount, sanitize_input
 from utils.security import SecurityAudit, log_security_event, check_suspicious_activity
 from utils.notifications import NotificationService
@@ -36,6 +36,7 @@ class TransferSchema(Schema):
     amount = fields.Float(required=True, validate=validate.Range(min=0.01))
     description = fields.Str(missing='Transfer')
     category = fields.Str(missing='transfer')
+    transaction_pin = fields.Str(required=True, validate=validate.Length(equal=4))
 
 class ExternalPaymentSchema(Schema):
     from_account_id = fields.Str(required=True)
@@ -451,6 +452,49 @@ def create_transfer():
         # Validate request data
         schema = TransferSchema()
         data = schema.load(request.get_json() or {})
+
+        # Enforce transaction PIN and lockout policy
+        # Check if PIN is currently locked
+        if user.is_pin_locked():
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is temporarily locked due to multiple failed attempts. Please try again later.'
+            }), 403
+
+        provided_pin = data.get('transaction_pin')
+        if not provided_pin:
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is required to perform transfers.'
+            }), 400
+
+        # Verify PIN
+        if not user.check_transaction_pin(provided_pin):
+            # Increment attempts
+            current_attempts = getattr(user, 'pin_attempts', 0) or 0
+            current_attempts += 1
+            user.pin_attempts = current_attempts
+
+            # Lock if reached max attempts
+            if current_attempts >= PIN_MAX_ATTEMPTS:
+                user.pin_locked_until = datetime.utcnow() + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+                user.save()
+                return jsonify({
+                    'success': False,
+                    'message': 'Incorrect transaction PIN. Your transactions are locked due to multiple failed attempts. Please try again later.'
+                }), 403
+
+            user.save()
+            remaining = max(PIN_MAX_ATTEMPTS - current_attempts, 0)
+            return jsonify({
+                'success': False,
+                'message': f'Incorrect transaction PIN. You have {remaining} attempt(s) remaining before your transactions are locked.'
+            }), 401
+
+        # Correct PIN: reset attempts and lock
+        user.pin_attempts = 0
+        user.pin_locked_until = None
+        user.save()
         
         # Validate amount
         try:

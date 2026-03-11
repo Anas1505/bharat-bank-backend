@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from extensions import limiter, revoke_token
 from models.user import User, UserSchema
 from models.account import Account
-from utils.validation import validate_password_strength, sanitize_input
+from utils.validation import validate_password_strength, validate_pin, sanitize_input
 from utils.security import (
     get_client_ip, log_security_event, SecurityAudit,
     check_suspicious_activity, generate_secure_token
@@ -32,6 +32,7 @@ class RegisterSchema(Schema):
     password = fields.Str(required=True, validate=validate.Length(min=8))
     date_of_birth = fields.Date(required=True)
     accept_terms = fields.Bool(required=True)
+    transaction_pin = fields.Str(required=True, validate=validate.Length(equal=4))
 
 class PasswordResetRequestSchema(Schema):
     email = fields.Email(required=True)
@@ -92,6 +93,15 @@ def register():
                 'message': str(e)
             }), 400
         
+        # Validate transaction PIN format (4 digits)
+        try:
+            validate_pin(data.get('transaction_pin'))
+        except ValidationError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+        
         # Check if user already exists
         existing_user = User.find_one({'email': data['email'].lower()})
         if existing_user:
@@ -111,10 +121,22 @@ def register():
             'is_active': True,
             'is_verified': False,
             'registration_ip': get_client_ip(),
-            'last_login': None
+            'last_login': None,
+            # transaction PIN fields initialisation
+            'pin_attempts': 0,
+            'pin_locked_until': None,
         }
         
         user = User(**user_data)
+        # Set and hash the transaction PIN before saving
+        try:
+            user.set_transaction_pin(data['transaction_pin'])
+        except ValueError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e),
+            }), 400
+
         if user.save():
             # Create a primary account for the user
             account_data = {

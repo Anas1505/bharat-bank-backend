@@ -6,6 +6,10 @@ from extensions import mongo
 import bcrypt
 import re
 
+# Transaction PIN settings
+PIN_MAX_ATTEMPTS = 3
+PIN_LOCKOUT_MINUTES = 15
+
 class User(BaseModel):
     """User model class"""
     
@@ -22,6 +26,12 @@ class User(BaseModel):
             else:
                 # Password is already hashed, use it as-is
                 self.data['password'] = password
+        
+        # Ensure default values for transaction PIN security fields
+        if 'pin_attempts' not in self.data:
+            self.data['pin_attempts'] = 0
+        if 'pin_locked_until' not in self.data:
+            self.data['pin_locked_until'] = None
     
     def check_password(self, password):
         """Check password against stored hash"""
@@ -34,14 +44,68 @@ class User(BaseModel):
             return check_password(password, stored_hash)
         except Exception:
             return False
-    
+
+    # Transaction PIN helpers
+    def set_transaction_pin(self, pin: str):
+        """Set or update the user's 4-digit transaction PIN."""
+        if not pin:
+            raise ValueError("Transaction PIN is required")
+        pin_str = str(pin).strip()
+        if not re.fullmatch(r"\d{4}", pin_str):
+            raise ValueError("Transaction PIN must be exactly 4 digits")
+
+        # Reuse the same hashing mechanism as passwords (bcrypt)
+        self.transaction_pin_hash = hash_password(pin_str)
+        # Reset attempts and lock status whenever PIN is (re)set
+        self.pin_attempts = 0
+        self.pin_locked_until = None
+
+    def check_transaction_pin(self, pin: str) -> bool:
+        """Verify the provided PIN against the stored hash."""
+        if not pin:
+            return False
+
+        stored_hash = getattr(self, "transaction_pin_hash", None)
+        if not stored_hash:
+            return False
+
+        try:
+            return check_password(str(pin).strip(), stored_hash)
+        except Exception:
+            return False
+
+    def is_pin_locked(self) -> bool:
+        """Return True if the transaction PIN is currently locked."""
+        locked_until = getattr(self, "pin_locked_until", None)
+        if not locked_until:
+            return False
+        try:
+            # In case pin_locked_until is stored as string, try parsing
+            if isinstance(locked_until, str):
+                try:
+                    locked_until_dt = datetime.fromisoformat(locked_until)
+                except ValueError:
+                    return False
+            else:
+                locked_until_dt = locked_until
+            return locked_until_dt > datetime.utcnow()
+        except Exception:
+            return False
+
     def set_password(self, password):
         """Set a new password for user"""
         self.password = hash_password(password)
     
     def json(self, exclude_fields=None):
         """Convert user to JSON"""
-        exclude_fields = exclude_fields or ['password', 'reset_token', 'reset_token_expires']
+        exclude_fields = exclude_fields or [
+            'password',
+            'reset_token',
+            'reset_token_expires',
+            'transaction_pin_hash',
+            'pin_attempts',
+            'pin_locked_until',
+        ]
         return self.to_dict(exclude_fields=exclude_fields)
     
     def generate_reset_token(self):
