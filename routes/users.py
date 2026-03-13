@@ -9,6 +9,7 @@ from models.transaction import Transaction
 from utils.validation import validate_password_strength, validate_pin, sanitize_input
 from utils.security import SecurityAudit, log_security_event, check_password_complexity
 from utils.notifications import NotificationService
+from models.notification import create_notification
 
 # Create blueprint
 users_bp = Blueprint('users', __name__)
@@ -272,6 +273,13 @@ def update_password():
         log_security_event('password_changed', current_user_id, {
             'complexity_score': complexity_score
         })
+
+        # In-app notification
+        create_notification(
+            current_user_id,
+            'Your account password was changed successfully',
+            'security'
+        )
         
         return jsonify({
             'success': True,
@@ -556,6 +564,13 @@ def change_transaction_pin():
 
         # Log security event
         log_security_event('transaction_pin_changed', current_user_id)
+
+        # In-app notification
+        create_notification(
+            current_user_id,
+            'Your transaction PIN was updated',
+            'security'
+        )
 
         return jsonify({
             'success': True,

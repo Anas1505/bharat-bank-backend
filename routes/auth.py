@@ -14,6 +14,7 @@ from utils.security import (
     check_suspicious_activity, generate_secure_token
 )
 from utils.notifications import NotificationService
+from models.notification import create_notification
 
 # Create blueprint
 auth_bp = Blueprint('auth', __name__)
@@ -174,6 +175,13 @@ def register():
                     )
             except Exception:
                 pass
+
+            # In-app welcome notification
+            create_notification(
+                str(user._id),
+                'Welcome to the Mobile Banking App. Your account was created successfully.',
+                'system'
+            )
 
             # Create tokens
             access_token = create_access_token(

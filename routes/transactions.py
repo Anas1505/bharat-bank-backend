@@ -10,6 +10,7 @@ from models.user import User, PIN_MAX_ATTEMPTS, PIN_LOCKOUT_MINUTES
 from utils.validation import validate_transaction_amount, sanitize_input
 from utils.security import SecurityAudit, log_security_event, check_suspicious_activity
 from utils.notifications import NotificationService
+from models.notification import create_notification
 
 # Create blueprint
 transactions_bp = Blueprint('transactions', __name__)
@@ -336,6 +337,13 @@ def create_deposit():
                 user.email,
                 transaction.get_transaction_summary()
             )
+
+            # In-app notification
+            create_notification(
+                current_user_id,
+                f"₹{data['amount']:.2f} deposited successfully",
+                'transaction'
+            )
             
             return jsonify({
                 'success': True,
@@ -483,6 +491,13 @@ def create_withdrawal():
             NotificationService.send_transaction_notification(
                 user.email,
                 transaction.get_transaction_summary()
+            )
+
+            # In-app notification
+            create_notification(
+                current_user_id,
+                f"₹{data['amount']:.2f} withdrawn successfully",
+                'transaction'
             )
             
             # Send security alert if suspicious
@@ -651,6 +666,13 @@ def create_transfer():
             NotificationService.send_transaction_notification(
                 user.email,
                 transaction.get_transaction_summary()
+            )
+
+            # In-app notification for sender
+            create_notification(
+                current_user_id,
+                f"₹{data['amount']:.2f} transferred successfully",
+                'transaction'
             )
             
             # If transferring to different user, notify recipient

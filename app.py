@@ -20,6 +20,7 @@ from routes.auth import auth_bp
 from routes.accounts import accounts_bp
 from routes.transactions import transactions_bp
 from routes.users import users_bp
+from routes.notifications import notifications_bp
 
 def create_app(config_class=Config):
     """Application factory pattern"""
@@ -43,6 +44,7 @@ def create_app(config_class=Config):
     app.register_blueprint(accounts_bp, url_prefix='/api/accounts')
     app.register_blueprint(transactions_bp, url_prefix='/api/transactions')
     app.register_blueprint(users_bp, url_prefix='/api/users')
+    app.register_blueprint(notifications_bp, url_prefix='/api/notifications')
     
     # Root endpoint
     @app.route('/', methods=['GET'])
