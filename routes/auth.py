@@ -41,6 +41,14 @@ class PasswordResetSchema(Schema):
     token = fields.Str(required=True)
     new_password = fields.Str(required=True, validate=validate.Length(min=8))
 
+class ForgotPasswordSchema(Schema):
+    email = fields.Email(required=True)
+
+class ResetPasswordSchema(Schema):
+    email = fields.Email(required=True)
+    new_password = fields.Str(required=True, validate=validate.Length(min=8))
+    confirm_password = fields.Str(required=True, validate=validate.Length(min=8))
+
 class ChangePasswordSchema(Schema):
     current_password = fields.Str(required=True)
     new_password = fields.Str(required=True, validate=validate.Length(min=8))
@@ -579,6 +587,101 @@ def change_password():
         return jsonify({
             'success': False,
             'message': 'Password change failed'
+        }), 500
+
+@auth_bp.route('/forgot-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def forgot_password():
+    """Verify if email exists for password reset"""
+    try:
+        schema = ForgotPasswordSchema()
+        data = schema.load(request.get_json() or {})
+
+        user = User.find_one({'email': data['email'].lower()})
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': 'Email not registered'
+            }), 404
+
+        # Log security event
+        log_security_event('forgot_password_verified', str(user._id), {
+            'email': user.email
+        })
+
+        return jsonify({
+            'success': True,
+            'message': 'Email verified successfully. You can now reset your password.'
+        })
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'message': 'Validation error',
+            'errors': e.messages
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Verification failed. Please try again.'
+        }), 500
+
+@auth_bp.route('/reset-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def reset_password():
+    """Reset password after email verification"""
+    try:
+        schema = ResetPasswordSchema()
+        data = schema.load(request.get_json() or {})
+
+        # Check passwords match
+        if data['new_password'] != data['confirm_password']:
+            return jsonify({
+                'success': False,
+                'message': 'Passwords do not match'
+            }), 400
+
+        # Validate password strength
+        try:
+            validate_password_strength(data['new_password'])
+        except ValidationError as e:
+            return jsonify({
+                'success': False,
+                'message': str(e)
+            }), 400
+
+        # Find user
+        user = User.find_one({'email': data['email'].lower()})
+        if not user:
+            return jsonify({
+                'success': False,
+                'message': 'Email not registered'
+            }), 404
+
+        # Update password
+        user.set_password(data['new_password'])
+        user.save()
+
+        # Log security event
+        log_security_event('password_reset_via_forgot', str(user._id), {
+            'email': user.email
+        })
+
+        return jsonify({
+            'success': True,
+            'message': 'Password reset successful. You can now login with your new password.'
+        })
+
+    except ValidationError as e:
+        return jsonify({
+            'success': False,
+            'message': 'Validation error',
+            'errors': e.messages
+        }), 400
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': 'Password reset failed. Please try again.'
         }), 500
 
 @auth_bp.route('/verify-token', methods=['GET'])
