@@ -236,12 +236,52 @@ def create_deposit():
         data = request.get_json() or {}
         
         # Required fields for deposit
-        if not all(key in data for key in ['to_account_id', 'amount', 'description']):
+        if not all(key in data for key in ['to_account_id', 'amount', 'description', 'transaction_pin']):
             return jsonify({
                 'success': False,
-                'message': 'Missing required fields: to_account_id, amount, description'
+                'message': 'Missing required fields: to_account_id, amount, description, transaction_pin'
             }), 400
         
+        # Enforce transaction PIN and lockout policy
+        if user.is_pin_locked():
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is temporarily locked due to multiple failed attempts. Please try again later.'
+            }), 403
+
+        provided_pin = data.get('transaction_pin')
+        if not provided_pin or len(str(provided_pin).strip()) != 4:
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is required to perform deposits.'
+            }), 400
+
+        # Verify PIN
+        if not user.check_transaction_pin(provided_pin):
+            current_attempts = getattr(user, 'pin_attempts', 0) or 0
+            current_attempts += 1
+            user.pin_attempts = current_attempts
+
+            if current_attempts >= PIN_MAX_ATTEMPTS:
+                user.pin_locked_until = datetime.utcnow() + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+                user.save()
+                return jsonify({
+                    'success': False,
+                    'message': 'Incorrect transaction PIN. Your transactions are locked due to multiple failed attempts. Please try again later.'
+                }), 403
+
+            user.save()
+            remaining = max(PIN_MAX_ATTEMPTS - current_attempts, 0)
+            return jsonify({
+                'success': False,
+                'message': f'Invalid Transaction PIN. You have {remaining} attempt(s) remaining before your transactions are locked.'
+            }), 401
+
+        # Correct PIN: reset attempts and lock
+        user.pin_attempts = 0
+        user.pin_locked_until = None
+        user.save()
+
         # Validate amount
         try:
             validate_transaction_amount(data['amount'])
@@ -336,12 +376,52 @@ def create_withdrawal():
         data = request.get_json() or {}
         
         # Required fields for withdrawal
-        if not all(key in data for key in ['from_account_id', 'amount', 'description']):
+        if not all(key in data for key in ['from_account_id', 'amount', 'description', 'transaction_pin']):
             return jsonify({
                 'success': False,
-                'message': 'Missing required fields: from_account_id, amount, description'
+                'message': 'Missing required fields: from_account_id, amount, description, transaction_pin'
             }), 400
         
+        # Enforce transaction PIN and lockout policy
+        if user.is_pin_locked():
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is temporarily locked due to multiple failed attempts. Please try again later.'
+            }), 403
+
+        provided_pin = data.get('transaction_pin')
+        if not provided_pin or len(str(provided_pin).strip()) != 4:
+            return jsonify({
+                'success': False,
+                'message': 'Transaction PIN is required to perform withdrawals.'
+            }), 400
+
+        # Verify PIN
+        if not user.check_transaction_pin(provided_pin):
+            current_attempts = getattr(user, 'pin_attempts', 0) or 0
+            current_attempts += 1
+            user.pin_attempts = current_attempts
+
+            if current_attempts >= PIN_MAX_ATTEMPTS:
+                user.pin_locked_until = datetime.utcnow() + timedelta(minutes=PIN_LOCKOUT_MINUTES)
+                user.save()
+                return jsonify({
+                    'success': False,
+                    'message': 'Incorrect transaction PIN. Your transactions are locked due to multiple failed attempts. Please try again later.'
+                }), 403
+
+            user.save()
+            remaining = max(PIN_MAX_ATTEMPTS - current_attempts, 0)
+            return jsonify({
+                'success': False,
+                'message': f'Invalid Transaction PIN. You have {remaining} attempt(s) remaining before your transactions are locked.'
+            }), 401
+
+        # Correct PIN: reset attempts and lock
+        user.pin_attempts = 0
+        user.pin_locked_until = None
+        user.save()
+
         # Validate amount
         try:
             validate_transaction_amount(data['amount'])
