@@ -278,7 +278,8 @@ def update_password():
         create_notification(
             current_user_id,
             'Your account password was changed successfully',
-            'security'
+            'security',
+            setting_key='password_change_alerts'
         )
         
         return jsonify({
@@ -569,7 +570,8 @@ def change_transaction_pin():
         create_notification(
             current_user_id,
             'Your transaction PIN was updated',
-            'security'
+            'security',
+            setting_key='pin_change_alerts'
         )
 
         return jsonify({

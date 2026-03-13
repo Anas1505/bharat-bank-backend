@@ -136,6 +136,15 @@ def register():
             'pin_locked_until': None,
             # consent & metadata
             'terms_accepted': True,
+            # default notification preferences
+            'notification_settings': {
+                'deposit_alerts': True,
+                'withdraw_alerts': True,
+                'transfer_alerts': True,
+                'password_change_alerts': True,
+                'pin_change_alerts': True,
+                'system_announcements': True,
+            },
         }
         
         user = User(**user_data)
@@ -180,7 +189,8 @@ def register():
             create_notification(
                 str(user._id),
                 'Welcome to the Mobile Banking App. Your account was created successfully.',
-                'system'
+                'system',
+                setting_key='system_announcements'
             )
 
             # Create tokens

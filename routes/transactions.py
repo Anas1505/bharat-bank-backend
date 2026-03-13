@@ -342,7 +342,8 @@ def create_deposit():
             create_notification(
                 current_user_id,
                 f"₹{data['amount']:.2f} deposited successfully",
-                'transaction'
+                'transaction',
+                setting_key='deposit_alerts'
             )
             
             return jsonify({
@@ -497,7 +498,8 @@ def create_withdrawal():
             create_notification(
                 current_user_id,
                 f"₹{data['amount']:.2f} withdrawn successfully",
-                'transaction'
+                'transaction',
+                setting_key='withdraw_alerts'
             )
             
             # Send security alert if suspicious
@@ -672,7 +674,8 @@ def create_transfer():
             create_notification(
                 current_user_id,
                 f"₹{data['amount']:.2f} transferred successfully",
-                'transaction'
+                'transaction',
+                setting_key='transfer_alerts'
             )
             
             # If transferring to different user, notify recipient

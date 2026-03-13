@@ -47,16 +47,42 @@ class Notification(BaseModel):
         self.save()
 
 
-def create_notification(user_id, message, notification_type='system'):
+# Default notification settings for new users
+DEFAULT_NOTIFICATION_SETTINGS = {
+    'deposit_alerts': True,
+    'withdraw_alerts': True,
+    'transfer_alerts': True,
+    'password_change_alerts': True,
+    'pin_change_alerts': True,
+    'login_alerts': True,
+    'system_announcements': True,
+}
+
+
+def create_notification(user_id, message, notification_type='system', setting_key=None):
     """Reusable helper to insert a notification document.
 
     Args:
         user_id: str or ObjectId of the user
         message: notification message text
         notification_type: one of 'transaction', 'security', 'system'
+        setting_key: optional key in user.notification_settings to check;
+                     if the user has disabled it the notification is skipped.
     """
     if isinstance(user_id, str):
         user_id = ObjectId(user_id)
+
+    # Check user's notification settings before creating
+    if setting_key:
+        try:
+            from models.user import User
+            user = User.find_by_id(user_id)
+            if user:
+                settings = getattr(user, 'notification_settings', None) or {}
+                if not settings.get(setting_key, True):
+                    return None
+        except Exception:
+            pass  # On lookup failure, still create the notification
 
     notification = Notification(
         user_id=user_id,
